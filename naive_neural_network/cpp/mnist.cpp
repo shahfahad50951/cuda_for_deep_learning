@@ -242,9 +242,11 @@ public:
             gemm_derivative(relu_out, weight2, bias2, grad_of_loss_wrt_fc2_out, config.batch_size, config.output_size, config.hidden_size);
 
         float* grad_of_loss_wrt_fc1_out = relu_derivative(fc1_out, grad_of_loss_wrt_relu_out, config.batch_size, config.hidden_size);
+        free(grad_of_loss_wrt_relu_out);
 
         auto [grad_of_loss_wrt_input, grad_of_loss_wrt_fc1_weight, grad_of_loss_wrt_fc1_bias] = 
             gemm_derivative(input, weight1, bias1, grad_of_loss_wrt_fc1_out, config.batch_size, config.hidden_size, config.input_size);
+        free(grad_of_loss_wrt_input);
         
         return {grad_of_loss_wrt_fc1_weight, grad_of_loss_wrt_fc1_bias, grad_of_loss_wrt_fc2_weight, grad_of_loss_wrt_fc2_bias};
     }
@@ -313,8 +315,9 @@ tuple<float*, float*> train_timed(MLP& model, MLPConfig config, tuple<float*, in
             time_diff = after_time - before_time;
             timing_stats[3] += time_diff.count();
 
-            // Free the cached activations
+            // Free the cached activations and their gradients
             free(get<0>(cache)); free(get<1>(cache)); free(get<2>(cache));
+            free(grad_of_loss_wrt_fc2_out);
 
             // Update the parameters of the model using computed gradients
             before_time = chrono::high_resolution_clock::now();
@@ -337,6 +340,8 @@ void print_timing_stats(float* timing_stats){
     for(int i{0}; i < 5; i++) total_time += timing_stats[i];
 
     cout << "Timing Stats\n";
+    cout << "\tTotal Training Time: " << total_time << " sec\n\n";
+    cout << "Detailed BreakDown\n";
     cout << "\tData Preparation: " << timing_stats[0] << " sec (" << timing_stats[0] * 100 / total_time << "%)\n";
     cout << "\tForward Pass: " << timing_stats[1] << " sec (" << timing_stats[1] * 100 / total_time << "%)\n";
     cout << "\tLoss Computation: " << timing_stats[2] << " sec (" << timing_stats[2] * 100 / total_time << "%)\n";
@@ -346,6 +351,9 @@ void print_timing_stats(float* timing_stats){
 }
 
 int main(){
+    // Set custom seed for reproducability across C++ and CUDA implementation
+    srand(1U);
+
     constexpr int INPUT_SIZE{784};
     constexpr int HIDDEN_SIZE{256};
     constexpr int OUTPUT_SIZE{10};
