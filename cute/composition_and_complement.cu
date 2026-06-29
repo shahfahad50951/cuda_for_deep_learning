@@ -39,5 +39,5 @@ int main(){
 
 /*
     Compilation Command:
-    nvcc ++ -I ./cutlass/include --std=c++17 composition_and_complement.cu
+    nvcc -I ./cutlass/include --std=c++17 composition_and_complement.cu
 */
