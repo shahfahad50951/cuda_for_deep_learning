@@ -28,7 +28,7 @@ template <class Tensor>
 void initializeMatrixSeq(Tensor& matrix){
     for(int m{0}; m < cute::size<0>(matrix); m++){
         for(int n{0}; n < cute::size<1>(matrix); n++){
-            matrix(m,n) = m * get<0>(stride(matrix)) + n * get<1>(stride(matrix));
+            matrix(m,n) = min(64.0f, (float) m * get<0>(stride(matrix)) + (float) n * get<1>(stride(matrix)));
         }
     }
     return;
@@ -80,7 +80,7 @@ __global__ void device_gemm(TensorA A, TensorB B, TensorC C){
 
 int main(){
     // Problem dimensions
-    int M{4}, N{4}, K{4};
+    int M{1024}, N{1024}, K{1024};
 
     /* CPU GEMM START */
 
@@ -106,7 +106,6 @@ int main(){
 
     // Matrix Multiplication
     cpu_gemm(ATensor, BTensor, CTensor);
-    print_tensor(CTensor);
 
     /* CPU GEMM END */
 
@@ -153,7 +152,6 @@ int main(){
     float* C_gpudata_copy = new float[M * N];
     cudaMemcpy(C_gpudata_copy, C_gpudata, M * N * sizeof(float), cudaMemcpyDeviceToHost);
     auto CTensor_copy = make_tensor(C_gpudata_copy, CLayoutGPU);
-    print_tensor(CTensor_copy);
     bool equal = areEqual(CTensor, CTensor_copy);
 
     if(equal) cout << "Result of GEMM on CPU and GPU match!\n";
