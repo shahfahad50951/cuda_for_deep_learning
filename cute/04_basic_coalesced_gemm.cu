@@ -2,6 +2,9 @@
     Implements standard CPU and GPU GEMM using CUTE Tensor, Shape, Layout, and Stride
     abstractions. The GPU GEMM is a non-tiled implementation with one thread owning
     one output element; for an (M,N) output matrix, M * N threads are launched.
+
+    GPU Layouts used in this implementation for A and C matrix are optimal for 
+    the access pattern of threads within a warp.
 */
 
 #include <iostream>
@@ -118,6 +121,9 @@ int main(){
     cudaMalloc(&C_gpudata, M * N * sizeof(float));
 
     // Create Layouts
+    // CTAs below are launched with block dimensions (blockSize.x, blockSize.y) where 
+    // blockSize.x maps to the M dimension and blockSize.y maps to the N dimension.
+    // Also in CUDA, threads within a CTA are serialized to warps in x dimension first
     auto ALayoutGPU = make_layout(make_shape(M, K), make_stride(1, M));  // M-major
     auto BLayoutGPU = make_layout(make_shape(K, N), make_stride(1, K));  // K-major
     auto CLayoutGPU = make_layout(make_shape(M, N), make_stride(1, M));  // M-major
@@ -171,5 +177,5 @@ int main(){
 
 /*
     Compilation Command:
-    nvcc -I ./cutlass/include --std=c++17 basic_gemm.cu
+    nvcc -lineinfo -I ./cutlass/include --std=c++17 -o basic_coalesced_gemm 04_basic_coalesced_gemm.cu
 */
