@@ -1,11 +1,70 @@
-# CUDA FOR DEEP LEARNING
+# CUDA for Deep Learning
 
-## GOALS
-- Implement most frequently used operations in deep learning as CUDA kernels 
-- Implement Deep Learning Models from highest level of abstraction (pytorch) down to the lowest level (C/CUDA) with each level adding more and more details to the implementation
-- Start with naive implementation and then improve the implementation to match / beat the state of the art (pytorch) implementations
+This repository builds an understanding of deep-learning implementation and performance from the top down: from PyTorch and NumPy to C++, CUDA, cuBLAS, and CuTe. The focus is not only on writing correct kernels, but on understanding how they use the GPU and improving them through measurement.
 
-## TAKEAWAYS
-- A complete understanding of how deep learning models implemented in pytorch are mapped to lower level concepts like CUDA kernel
-- Understanding of the purpose of the autograd engine of pytorch and minimal replication of its behaviour required for our implementation
-- Optimization concepts and step by step process of how a model (and CUDA kernels) are optimized to get the best performance
+## Goals
+
+- Implement commonly used deep-learning operations as CPU and CUDA kernels.
+- Implement the same neural-network workloads at progressively lower levels of abstraction, making the details hidden by higher-level frameworks explicit.
+- Start with simple, correct implementations and optimize them iteratively using profiler evidence.
+- Understand the role of PyTorch's autograd engine and eventually reproduce the minimum behavior needed by the lower-level implementations.
+
+## Repository structure
+
+| Directory | Contents |
+|---|---|
+| [`naive_kernels/`](naive_kernels/) | CPU and CUDA implementations of matrix addition, matrix transpose, 1D and 2D convolution, max pooling, softmax, RMSNorm, and GEMM. |
+| [`naive_neural_network/`](naive_neural_network/) | An MNIST neural network implemented in PyTorch, NumPy, C++, CUDA, and cuBLAS. |
+| [`cute/`](cute/) | CuTe layout fundamentals followed by a progressively optimized GEMM series. |
+| [`cute/ncu_case_studies/`](cute/ncu_case_studies/) | Nsight Compute case studies that connect the GEMM source code, profiler metrics, hardware behavior, and the next optimization target. |
+
+## CuTe GEMM optimization series
+
+The examples are intended to be read in order. The first two establish the CuTe concepts used by the kernels; the remaining examples change one important part of the GEMM at a time and examine the result with Nsight Compute.
+
+| Step | Source | Focus | NCU case study |
+|---|---|---|---|
+| 01 | [`01_basic_cute_concepts.cu`](cute/01_basic_cute_concepts.cu) | CuTe shapes, strides, layouts, tensors, and slicing. | — |
+| 02 | [`02_composition_and_complement.cu`](cute/02_composition_and_complement.cu) | Layout composition and complement. | — |
+| 03 | [`03_basic_uncoalesced_gemm.cu`](cute/03_basic_uncoalesced_gemm.cu) | A basic GEMM whose lane-address pattern creates excessive sectors and wavefronts, L1TEX pressure, LG Throttle stalls, and low scheduler issue activity. | [Uncoalesced GEMM analysis](cute/ncu_case_studies/03_basic_uncoalesced_gemm.md) |
+| 04 | [`04_basic_coalesced_gemm.cu`](cute/04_basic_coalesced_gemm.cu) | Coalesced warp accesses remove the original sector and wavefront amplification, improve scheduler progress, and expose the SM LSU and L1TEX request-input rates as the next limit. | [Coalesced GEMM analysis](cute/ncu_case_studies/04_basic_coalesced_gemm.md) |
+| 05 | [`05_smem_tiled_gemm.cu`](cute/05_smem_tiled_gemm.cu) | Cooperative shared-memory tiling removes repeated global loads and relieves LG Throttle; the dense shared-memory load stream and MIO Throttle become the next limit. | [Shared-memory-tiled GEMM analysis](cute/ncu_case_studies/05_smem_tiled_gemm.md) |
+
+These case studies are not presentations of the fastest GEMM. They demonstrate the optimization loop used throughout the series:
+
+```text
+profile the kernel -> identify the largest bottleneck -> make a targeted change -> profile again
+```
+
+Each report is used to reconstruct the relevant instruction, request, sector, wavefront, throughput, occupancy, scheduler, and warp-state metrics. More GEMM variants will continue this process, relieving one measured bottleneck at a time and working from the naive implementation toward cuBLAS-level performance for the same workload.
+
+## Building the CuTe examples
+
+The CuTe examples require:
+
+- an NVIDIA GPU;
+- the CUDA Toolkit, including `nvcc`;
+- a C++17-capable host compiler; and
+- the CuTe headers distributed with [NVIDIA CUTLASS](https://github.com/NVIDIA/cutlass).
+
+Clone CUTLASS into the expected local directory, then compile an example from the repository root:
+
+```bash
+git clone https://github.com/NVIDIA/cutlass.git cute/cutlass
+cd cute
+nvcc -lineinfo --std=c++17 -I ./cutlass/include \
+  -o smem_tiled_gemm 05_smem_tiled_gemm.cu
+./smem_tiled_gemm
+```
+
+Nsight Compute is needed only to reproduce or extend the profiling analysis:
+
+```bash
+ncu --set full --import-source yes ./smem_tiled_gemm
+```
+
+## What this project is meant to develop
+
+- A clear mapping from high-level deep-learning operations to their C++ and CUDA implementations.
+- An understanding of the GPU work generated by a kernel rather than only its source-level algorithm.
+- A repeatable, evidence-driven process for diagnosing and optimizing CUDA performance.
