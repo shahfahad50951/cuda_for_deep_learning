@@ -43,23 +43,23 @@ void cpu_gemm(TensorA A, TensorB B, TensorC C){
 
 template<class TensorA, class TensorB>
 bool areEqual(TensorA A, TensorB B, float atol=1e-3){
-    int totalIncorrect = 0;
+    int totalMismatchCount = 0;
     float largestMismatch = 0.0f;
     for(int r{0}; r < size<0>(A); r++){
         for(int c{0}; c < size<1>(B); c++){
             if(abs(A(r,c) - B(r,c)) > atol) {
-                ++totalIncorrect;
+                ++totalMismatchCount;
                 largestMismatch = max(largestMismatch, abs(A(r,c) - B(r,c)));
             }
         }
     }
 
-    if(totalIncorrect > 0){
-        cout << "Total failed matches: " << totalIncorrect << '\n';
-        cout << "Largest difference between values: " << largestMismatch << '\n';
+    if(totalMismatchCount > 0){
+        cout << "Total failed matches: " << totalMismatchCount << '\n';
+        cout << "Largest mismatch: " << largestMismatch << '\n';
     }
 
-    return (totalIncorrect == 0) ? true : false;
+    return (totalMismatchCount == 0) ? true : false;
 }
 
 
@@ -170,9 +170,7 @@ Assumption: M, N and K are divisible by BLK_M, BLK_N, BLK_K respectively
 */
 
 int main(){
-    // int M = 1024, N = 1024, K = 1024;
-    // int M = 64, N = 64, K = 96;
-    int M = 64, N = 64, K = 192;
+    int M = 1024, N = 1024, K = 1024;
 
     /* CPU GEMM START */
 
@@ -198,9 +196,6 @@ int main(){
 
     // Call cpu_gemm to perform gemm operation
     cpu_gemm(ATensor, BTensor, CTensor);
-
-    // Print tensors for manual verification
-    // print_tensor(ATensor); print_tensor(BTensor); print_tensor(CTensor);
 
     /* CPU GEMM END */
 
@@ -238,7 +233,7 @@ int main(){
     cudaMemset(CDataGPU, 0, size(CTensorGPU) * sizeof(float));
 
     // Setup gpu_gemm kernel launch parameters
-    auto BLK_M = cute::_32{}; auto BLK_N = cute::_32{}; auto BLK_K = cute::_96{};
+    auto BLK_M = cute::_32{}; auto BLK_N = cute::_32{}; auto BLK_K = cute::_32{};
     dim3 blockSize{BLK_M, BLK_N};
     dim3 gridSize{(M + blockSize.x - 1) / blockSize.x, (N + blockSize.y - 1) / blockSize.y};
 
